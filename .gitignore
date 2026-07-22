@@ -1,0 +1,11 @@
+# Ein- und Ausgabedaten (Stundenplan-PDFs bzw. generierte Excel-Dateien)
+input_files/
+output_files/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# macOS
+.DS_Store
