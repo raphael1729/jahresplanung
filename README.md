@@ -69,8 +69,9 @@ Fehlermeldung ab, statt still einen falschen Namen zu vergeben.
 | `pdf_timetable_to_xlsx.py` | Wandelt ein Stundenplan-PDF 1:1 in ein Excel-Raster um                |
 | `stundenplan_parsing.py`   | Liest die Excel-Raster aus und extrahiert Lektionen je Klasse/Fach    |
 | `rendering.py`             | Baut das Excel-Layout der Planungsdateien (Kopfzeile, Wochen, Blöcke) |
-| `klassenplanung.py`        | Orchestriert: prüft pro Klasse, ob der Stundenplan übers Jahr konstant bleibt, und erzeugt die Dateien |
+| `klassenplanung.py`        | Orchestriert: prüft pro Klasse, ob der Stundenplan übers Jahr, pro Semester oder nur pro Phase konstant bleibt, und erzeugt entsprechend 1, 2 oder mehrere Arbeitsblätter |
 | `config.py`                | Schulkalender + Gestaltungswerte (siehe unten)                        |
+| `farbtoene.py`             | Hilfsfunktion `tint()`, um Hex-Farben für `config.py` aufzuhellen     |
 
 ## Jährliche Wartung: `config.py`
 
@@ -84,14 +85,18 @@ Vor jedem neuen Schuljahr in `config.py` aktualisieren:
 - `SPEZIALWOCHEN` – Klassenstufen-spezifische Wochen (Skilager, Projektwochen, ...)
 
 `STIL` (Schrift, Farben, Zeilen-/Spaltenmasse) muss nur angepasst werden,
-wenn sich am Aussehen der Excel-Dateien etwas ändern soll.
+wenn sich am Aussehen der Excel-Dateien etwas ändern soll. Farbwerte
+(`farbe_*`) lassen sich statt eines festen Hex-Codes auch über
+`tint("<Basisfarbe>", <Faktor>)` (aus `farbtoene.py`) definieren – der
+Faktor hellt die Basisfarbe Richtung Weiss auf (`1.0` = Originalfarbe,
+`0.0` = Weiss), ohne dass der Hex-Wert manuell ausgerechnet werden muss.
 
 ## Ausgabe
 
 - `output_files/Stundenplan_*.xlsx` – ein Export pro PDF (Zwischenschritt)
 - `output_files/klassen/Planung_<Klasse>.xlsx` – die eigentlichen
-  Planungsdateien, ein Arbeitsblatt pro Jahr oder pro Phase (je nachdem,
-  ob sich der Stundenplan der Klasse innerhalb des Jahres ändert)
+  Planungsdateien, ein Arbeitsblatt pro Jahr, pro Semester oder pro Phase
+  (je nachdem, wie konstant der Stundenplan der Klasse übers Jahr bleibt)
 
 ## Lizenz
 
