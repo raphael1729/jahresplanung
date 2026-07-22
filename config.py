@@ -13,6 +13,8 @@ Kalender-Dictionaries unten.
 
 from datetime import date, datetime
 
+from farbtoene import tint
+
 # Schuljahr, in dem Phase 1 beginnt (die Stundenplan-Exporte enthalten keine
 # Jahreszahlen, nur Tag.Monat).
 BASIS_JAHR = 2026
@@ -25,8 +27,6 @@ FERIEN = {
 }
 
 UNTERRICHTSFREIETAGE = {
-    "Sporttag": date(2026, 8, 31),
-    "Tec Day": date(2026, 10, 15),
     "GeKo": date(2027, 3, 10),
     "Tag der Arbeit": date(2027, 5, 1),
     "Auffahrt": date(2027, 5, 6),
@@ -35,8 +35,10 @@ UNTERRICHTSFREIETAGE = {
 }
 
 SPEZIALTAGE = {
+    "Alle Klassen Sporttag": [datetime(2026, 8, 31, 8, 0), datetime(2026, 8, 31, 18, 0)],
     "Alle Klassen 1. Pädagogischer Halbtag": [datetime(2026, 9, 2, 14, 0), datetime(2026, 9, 2, 18, 0)],
     "Alle Klassen 1.5 Pädagogischer Halbtag": [datetime(2026, 10, 13, 14, 0), datetime(2026, 10, 13, 18, 0)],
+    "Alle Klassen Tec-Day": [datetime(2026, 10, 15, 8, 0), datetime(2026, 10, 15, 18, 0)],
     "Alle Klassen 2. Pädagogischer Halbtag": [datetime(2026, 10, 23, 14, 0), datetime(2026, 10, 23, 15, 45)],
     "4. Klassen Infotag Uni-Basel": [datetime(2026, 11, 20, 0, 0), datetime(2026, 11, 20, 23, 59)],
     "Alle Klassen Debattiertag": [datetime(2026, 11, 25, 0, 0), datetime(2026, 11, 25, 23, 59)],
@@ -75,20 +77,28 @@ SPEZIALWOCHEN = {
 # Schriftfarbe. Wird ein Schlüssel weggelassen, gilt der Default:
 #   font_name -> STIL["font_name"], font_size -> STIL["font_size"],
 #   farbe -> automatisch/Schwarz, bold/italic -> False.
+
+TINT_FAKTOR = 0.55
 STIL = {
     "font_name": "Aptos Narrow (Body)",
-    "font_size": 10,
+    "font_size": 18,
     "schriften": {
         "header": {"bold": True},
-        "datum": {"bold": True},
+        "datum": {},
         "normal": {},
-        "frei": {"bold": True},
+        "frei": {},
     },
-    "farbe_ferien": "DFF1D3",
-    "farbe_frei": "CAEDFB",
-    "farbe_teilausfall": "FCE4A8",
-    "farbe_rand": "B7B7B7",
+    "farbe_ferien": tint("A9DEF9", TINT_FAKTOR),
+    "farbe_frei": tint("A9DEF9", TINT_FAKTOR),
+    "farbe_teilausfall": tint("A9DEF9", TINT_FAKTOR),
+    "farbe_header": tint("FF99C8", TINT_FAKTOR),
+    "farbe_datum": tint("E4C1F9", TINT_FAKTOR),
+    "farbe_daten": tint("FCF6BD", TINT_FAKTOR),
+    "farbe_prüfungen": tint("D0F4DE", TINT_FAKTOR),
+    "farbe_leer": "F2F2F2",
+    "farbe_rand": "000000",
     "zeilenhoehe": 128,
+    "zeilenhoehe_header": 64,
     "spaltenbreite_daten": 48,
     "spaltenbreite_datum": 16,
 }

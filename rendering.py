@@ -23,6 +23,10 @@ WOCHENTAG_MAP = {
     4: "Freitag", 5: "Samstag", 6: "Sonntag",
 }
 
+WOCHENTAG_ABK = {
+    0: "Mo", 1: "Di", 2: "Mi", 3: "Do", 4: "Fr", 5: "Sa", 6: "So",
+}
+
 STUFE_UND_TITEL_RE = re.compile(r"^(\d+)\.\s*Klassen\s*(.+)$")
 
 
@@ -171,7 +175,8 @@ class Spalten(NamedTuple):
     hat_fach2: bool
 
 
-def platziere_fach_woche(ws, eintraege_woche, start_zeile, datum_spalte, daten_spalte, stile):
+def platziere_fach_woche(ws, eintraege_woche, start_zeile, datum_spalte, daten_spalte, stile,
+                          ziel_gesamtzeilen=None):
     """
     Platziert die Unterrichts-Einträge eines Fachs für EINE Kalenderwoche,
     beginnend bei start_zeile. Gibt die Anzahl belegter Zeilen zurück.
@@ -184,6 +189,19 @@ def platziere_fach_woche(ws, eintraege_woche, start_zeile, datum_spalte, daten_s
     demselben Ausfall-Status (gleicher Typ + gleiches Label) werden zu
     einer gemeinsamen, über alle betroffenen Zeilen verschmolzenen Zelle
     zusammengefasst.
+
+    Ist an einem Tag JEDE Lektion vom selben Ausfall betroffen, bekommt auch
+    die Datumszelle dessen Farbe (statt der neutralen Datums-Farbe) - bei
+    gemischten Tagen (z. B. nur der Nachmittag fällt aus) bleibt sie neutral,
+    da keine einzelne Farbe den Tag fair repräsentieren würde.
+
+    ziel_gesamtzeilen erzwingt (falls gesetzt und grösser als die natürliche
+    Lektionenzahl) eine Mindest-Gesamtzeilenzahl für die Woche: der
+    Überschuss wird NICHT auf echte Lektionen verteilt (die bleiben alle
+    gleich hoch), sondern als EINE leere, dezent gefüllte Platzhalterzelle
+    ans Ende der Woche angehängt - genutzt, damit zwei Fächer mit
+    unterschiedlich vielen Lektionen pro Woche optisch gleich viel Platz
+    einnehmen, ohne dass eine einzelne Lektion künstlich gestreckt wirkt.
     """
     zeile = start_zeile
     for datum, zeilen in eintraege_woche:
@@ -191,12 +209,20 @@ def platziere_fach_woche(ws, eintraege_woche, start_zeile, datum_spalte, daten_s
         if anzahl > 1:
             ws.merge_cells(start_row=zeile, start_column=datum_spalte,
                             end_row=zeile + anzahl - 1, end_column=datum_spalte)
-        datum_zelle = ws.cell(row=zeile, column=datum_spalte, value=datum.strftime("%d.%m.%Y"))
+        datum_text = f"{WOCHENTAG_ABK[datum.weekday()]} {datum.day}.{datum.month}"
+        datum_zelle = ws.cell(row=zeile, column=datum_spalte, value=datum_text)
         datum_zelle.alignment = stile["align_center"]
         datum_zelle.font = stile["font_datum"]
 
+        if zeilen and all(z["typ"] != "normal" for z in zeilen) and all(z == zeilen[0] for z in zeilen):
+            datum_fill = stile["fill_frei"] if zeilen[0]["typ"] == "ausfall_ganz" else stile["fill_teilausfall"]
+        else:
+            datum_fill = stile["fill_datum"]
+
         for i in range(anzahl):
-            ws.cell(row=zeile + i, column=datum_spalte).border = stile["border_all"]
+            z = ws.cell(row=zeile + i, column=datum_spalte)
+            z.border = stile["border_all"]
+            z.fill = datum_fill
 
         i = 0
         while i < anzahl:
@@ -230,6 +256,18 @@ def platziere_fach_woche(ws, eintraege_woche, start_zeile, datum_spalte, daten_s
             i = j + 1
 
         zeile += anzahl
+
+    rest = max(0, (ziel_gesamtzeilen or 0) - (zeile - start_zeile))
+    if rest > 0:
+        ws.merge_cells(start_row=zeile, start_column=datum_spalte, end_row=zeile + rest - 1, end_column=datum_spalte)
+        ws.merge_cells(start_row=zeile, start_column=daten_spalte, end_row=zeile + rest - 1, end_column=daten_spalte + 1)
+        for r in range(zeile, zeile + rest):
+            for c in (datum_spalte, daten_spalte, daten_spalte + 1):
+                z = ws.cell(row=r, column=c)
+                z.border = stile["border_all"]
+                z.fill = stile["fill_leer"]
+        zeile += rest
+
     return zeile - start_zeile
 
 
@@ -283,7 +321,9 @@ def platziere_inl_block(ws, zeile, stile, spalten, anzahl=2):
         z.alignment = stile["align_center"]
         z.font = stile["font_datum"]
         for i in range(anzahl):
-            ws.cell(row=zeile + i, column=spalte).border = stile["border_all"]
+            zi = ws.cell(row=zeile + i, column=spalte)
+            zi.border = stile["border_all"]
+            zi.fill = stile["fill_datum"]
 
     daten_spalten = [(spalten.daten_1, stile["fill_lektion_1"])]
     if spalten.hat_fach2:
@@ -316,37 +356,54 @@ def _baue_stile():
         "font_datum": schrift("datum"),
         "font_normal": schrift("normal"),
         "font_frei": schrift("frei"),
-        "fill_lektion_1": PatternFill(fill_type=None),
-        "fill_lektion_2": PatternFill(fill_type=None),
+        "fill_lektion_1": PatternFill("solid", fgColor=STIL["farbe_daten"]),
+        "fill_lektion_2": PatternFill("solid", fgColor=STIL["farbe_daten"]),
+        "fill_datum": PatternFill("solid", fgColor=STIL["farbe_datum"]),
         "fill_ferien": PatternFill("solid", fgColor=STIL["farbe_ferien"]),
         "fill_frei": PatternFill("solid", fgColor=STIL["farbe_frei"]),
         "fill_teilausfall": PatternFill("solid", fgColor=STIL["farbe_teilausfall"]),
+        "fill_leer": PatternFill("solid", fgColor=STIL["farbe_leer"]),
+        "fill_header": PatternFill("solid", fgColor=STIL["farbe_header"]),
         "align_center": Alignment(horizontal="center", vertical="center", wrap_text=True),
         "border_all": Border(*(Side(style="thin", color=STIL["farbe_rand"]),) * 4),
     }
 
 
 def _schreibe_kopfzeile(ws, fach1, fach2, spalten, stile):
-    """Schreibt Zeile 1: Fachnamen zentriert über ihren jeweiligen Datenspalten."""
-    fill_leer = PatternFill(fill_type=None)
-
-    ws.cell(row=1, column=spalten.datum_1)  # leer
+    """Schreibt Zeile 1: 'Datum' über den Datumsspalten, Fachnamen zentriert
+    über ihren jeweiligen Datenspalten."""
+    d1 = ws.cell(row=1, column=spalten.datum_1, value="Datum")
+    d1.font = stile["font_header"]
+    d1.fill = stile["fill_header"]
+    d1.alignment = stile["align_center"]
+    d1.border = stile["border_all"]
 
     ws.merge_cells(start_row=1, start_column=spalten.daten_1, end_row=1, end_column=spalten.daten_1 + 1)
     t1 = ws.cell(row=1, column=spalten.daten_1, value=fach1)
     t1.font = stile["font_header"]
-    t1.fill = fill_leer
+    t1.fill = stile["fill_header"]
     t1.alignment = stile["align_center"]
-    ws.cell(row=1, column=spalten.daten_1 + 1).fill = fill_leer
+    t1.border = stile["border_all"]
+    z1b = ws.cell(row=1, column=spalten.daten_1 + 1)
+    z1b.fill = stile["fill_header"]
+    z1b.border = stile["border_all"]
 
     if fach2:
         ws.merge_cells(start_row=1, start_column=spalten.daten_2, end_row=1, end_column=spalten.daten_2 + 1)
         t2 = ws.cell(row=1, column=spalten.daten_2, value=fach2)
         t2.font = stile["font_header"]
-        t2.fill = fill_leer
+        t2.fill = stile["fill_header"]
         t2.alignment = stile["align_center"]
-        ws.cell(row=1, column=spalten.daten_2 + 1).fill = fill_leer
-        ws.cell(row=1, column=spalten.datum_2)  # leer
+        t2.border = stile["border_all"]
+        z2b = ws.cell(row=1, column=spalten.daten_2 + 1)
+        z2b.fill = stile["fill_header"]
+        z2b.border = stile["border_all"]
+
+        d2 = ws.cell(row=1, column=spalten.datum_2, value="Datum")
+        d2.font = stile["font_header"]
+        d2.fill = stile["fill_header"]
+        d2.border = stile["border_all"]
+        d2.alignment = stile["align_center"]
 
 
 def _baue_zeitachse(alle_kw, kw_fach1, kw_fach2, bloecke):
@@ -421,12 +478,15 @@ def fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen
             if mit_inl:
                 zeile += platziere_inl_block(ws, zeile, stile, spalten)
             kw = daten
-            rows1 = platziere_fach_woche(ws, kw_fach1.get(kw, []), zeile,
-                                          spalten.datum_1, spalten.daten_1, stile_fach1)
+            eintraege1 = kw_fach1.get(kw, [])
+            eintraege2 = kw_fach2.get(kw, []) if fach2 else []
+            ziel_gesamtzeilen = max(sum(len(z) for _, z in eintraege1), sum(len(z) for _, z in eintraege2))
+            rows1 = platziere_fach_woche(ws, eintraege1, zeile, spalten.datum_1, spalten.daten_1, stile_fach1,
+                                          ziel_gesamtzeilen=ziel_gesamtzeilen)
             rows2 = 0
             if fach2:
-                rows2 = platziere_fach_woche(ws, kw_fach2.get(kw, []), zeile,
-                                              spalten.datum_2, spalten.daten_2, stile_fach2)
+                rows2 = platziere_fach_woche(ws, eintraege2, zeile, spalten.datum_2, spalten.daten_2, stile_fach2,
+                                              ziel_gesamtzeilen=ziel_gesamtzeilen)
             zeile += max(rows1, rows2, 1)
         else:
             platziere_block(ws, daten, zeile, stile, spalten)
@@ -443,5 +503,18 @@ def fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen
         ws.column_dimensions[get_column_letter(spalten.datum_2)].width = breite_datum
 
     # --- Zeilenhöhen setzen -------------------------------------------------------
-    for r in range(1, zeile):
+    ws.row_dimensions[1].height = STIL["zeilenhoehe_header"]
+    for r in range(2, zeile):
         ws.row_dimensions[r].height = STIL["zeilenhoehe"]
+
+    # --- Trennlinie zwischen den beiden Fächern verdicken --------------------------
+    if fach2:
+        dick = Side(style="thick", color=STIL["farbe_rand"])
+        spalte_links, spalte_rechts = spalten.daten_1 + 1, spalten.daten_2
+        for r in range(1, zeile):
+            for spalte, kante in ((spalte_links, "right"), (spalte_rechts, "left")):
+                zelle = ws.cell(row=r, column=spalte)
+                rand = zelle.border
+                kanten = {"left": rand.left, "right": rand.right, "top": rand.top, "bottom": rand.bottom}
+                kanten[kante] = dick
+                zelle.border = Border(**kanten)
