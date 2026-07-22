@@ -1,4 +1,4 @@
-# Klassenplanung
+# Jahresplanung
 
 Erzeugt aus Untis-Stundenplan-PDFs pro Klasse eine Planungs-Excel-Datei
 (nach Kalenderwoche ausgerichtete Lektionszeilen, Ferien/Feiertage,
@@ -92,3 +92,7 @@ wenn sich am Aussehen der Excel-Dateien etwas ändern soll.
 - `output_files/klassen/Planung_<Klasse>.xlsx` – die eigentlichen
   Planungsdateien, ein Arbeitsblatt pro Jahr oder pro Phase (je nachdem,
   ob sich der Stundenplan der Klasse innerhalb des Jahres ändert)
+
+## Lizenz
+
+[MIT](LICENSE)
