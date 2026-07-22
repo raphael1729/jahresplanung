@@ -48,6 +48,15 @@ def klassen_signatur(phase, klasse, faecher_namen):
     )
 
 
+def ist_konstant(phasen_teil, klasse, faecher_namen):
+    """True, wenn die Klasse in JEDER Phase von phasen_teil unterrichtet wird
+    und dabei überall denselben Stundenplan (Fächer, Wochentage, Lektionenzahl)
+    hat."""
+    signaturen = [klassen_signatur(p, klasse, faecher_namen) for p in phasen_teil]
+    hat_lektionen = [any(eintraege for _, eintraege in sig) for sig in signaturen]
+    return all(hat_lektionen) and all(sig == signaturen[0] for sig in signaturen)
+
+
 def faecher_dict_fuer_phase(phase, klasse, faecher_namen):
     faecher = {}
     for fach in faecher_namen:
@@ -61,21 +70,17 @@ def erstelle_klassen_dateien(phasen, ferien, unterrichtsfreietage, spezialwochen
 
     alle_klassen = sorted({klasse for p in phasen for klasse in p["lektionen"]})
 
+    mitte = len(phasen) // 2
+    semester = [("1. Semester", phasen[:mitte]), ("2. Semester", phasen[mitte:])]
+
     for klasse in alle_klassen:
         klassenstufe = klassenstufe_von_klasse(klasse)
         faecher_namen = sorted({fach for p in phasen for fach in p["lektionen"].get(klasse, {})})
 
-        signaturen = [klassen_signatur(p, klasse, faecher_namen) for p in phasen]
-        hat_lektionen = [
-            any(eintraege for _, eintraege in sig)
-            for sig in signaturen
-        ]
-        konstant = all(hat_lektionen) and all(sig == signaturen[0] for sig in signaturen)
-
         wb = openpyxl.Workbook()
         wb.remove(wb.active)
 
-        if konstant:
+        if ist_konstant(phasen, klasse, faecher_namen):
             if len(faecher_namen) > 2:
                 print(f"WARNUNG: Klasse {klasse} hat mehr als zwei Fächer {faecher_namen} - übersprungen.")
                 continue
@@ -87,26 +92,43 @@ def erstelle_klassen_dateien(phasen, ferien, unterrichtsfreietage, spezialwochen
         else:
             uebersprungen = False
             erzeugte_blaetter = 0
-            for p, hat in zip(phasen, hat_lektionen):
-                if not hat:
-                    continue  # Klasse wird in dieser Phase nicht unterrichtet - kein Arbeitsblatt
-                phase_faecher = sorted(
-                    fach for fach in faecher_namen if p["lektionen"].get(klasse, {}).get(fach)
-                )
-                if len(phase_faecher) > 2:
-                    print(f"WARNUNG: Klasse {klasse} hat in {p['name']} mehr als zwei Fächer "
-                          f"{phase_faecher} - Klasse übersprungen.")
-                    uebersprungen = True
+            for semester_name, semester_phasen in semester:
+                if ist_konstant(semester_phasen, klasse, faecher_namen):
+                    if len(faecher_namen) > 2:
+                        print(f"WARNUNG: Klasse {klasse} hat mehr als zwei Fächer {faecher_namen} - "
+                              f"übersprungen.")
+                        uebersprungen = True
+                        break
+                    faecher = faecher_dict_fuer_phase(semester_phasen[0], klasse, faecher_namen)
+                    ws = wb.create_sheet(semester_name)
+                    fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen, spezialtage,
+                                         klassenstufe, semester_phasen[0]["start"], semester_phasen[-1]["ende"])
+                    erzeugte_blaetter += 1
+                    continue
+
+                for p in semester_phasen:
+                    hat = any(eintraege for _, eintraege in klassen_signatur(p, klasse, faecher_namen))
+                    if not hat:
+                        continue  # Klasse wird in dieser Phase nicht unterrichtet - kein Arbeitsblatt
+                    phase_faecher = sorted(
+                        fach for fach in faecher_namen if p["lektionen"].get(klasse, {}).get(fach)
+                    )
+                    if len(phase_faecher) > 2:
+                        print(f"WARNUNG: Klasse {klasse} hat in {p['name']} mehr als zwei Fächer "
+                              f"{phase_faecher} - Klasse übersprungen.")
+                        uebersprungen = True
+                        break
+                    faecher = faecher_dict_fuer_phase(p, klasse, phase_faecher)
+                    ws = wb.create_sheet(p["name"])
+                    fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen, spezialtage,
+                                         klassenstufe, p["start"], p["ende"], mit_inl=True)
+                    erzeugte_blaetter += 1
+                if uebersprungen:
                     break
-                faecher = faecher_dict_fuer_phase(p, klasse, phase_faecher)
-                ws = wb.create_sheet(p["name"])
-                fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen, spezialtage, klassenstufe,
-                                     p["start"], p["ende"], mit_inl=True)
-                erzeugte_blaetter += 1
 
             if uebersprungen or erzeugte_blaetter == 0:
                 continue
-            beschreibung = f"{erzeugte_blaetter} Phasen"
+            beschreibung = f"{erzeugte_blaetter} Blätter"
 
         pfad = ausgabe_ordner / f"Planung_{klasse}.xlsx"
         wb.save(pfad)
