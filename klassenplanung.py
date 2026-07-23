@@ -2,12 +2,13 @@
 Erstellt pro Klasse eine Planungs-Excel-Datei aus den Stundenplan-Exporten in
 output_files/ (siehe pdf_timetable_to_xlsx.py).
 
-Pro Klasse entsteht genau EINE Excel-Datei. Darin gibt es entweder
-  - EIN Arbeitsblatt fürs ganze Jahr, wenn sich der Stundenplan der Klasse
-    (Fächer, Wochentage, Lektionenzahl) über alle Phasen hinweg nicht
-    ändert, oder
-  - EIN Arbeitsblatt PRO PHASE, wenn er sich ändert (inkl. Phasen, in denen
-    die Klasse gar nicht unterrichtet wird).
+Pro Klasse entsteht genau EINE Excel-Datei, mit pro Semester (Phasen 1-3
+bzw. 4-6) entweder
+  - EINEM Arbeitsblatt fürs ganze Semester, wenn sich der Stundenplan der
+    Klasse (Fächer, Wochentage, Lektionenzahl) innerhalb des Semesters
+    nicht ändert, oder
+  - EINEM Arbeitsblatt PRO PHASE, wenn er sich ändert (inkl. Phasen, in
+    denen die Klasse gar nicht unterrichtet wird).
 
 InL- und Konf-Lektionen aus den Stundenplan-Exporten werden dabei ignoriert.
 Bei Klassen mit mehreren Phasen-Arbeitsblättern werden stattdessen pro
@@ -25,6 +26,7 @@ konstant bleibt, und die Excel-Arbeitsblätter befüllen (rendering.py).
 """
 
 import re
+from datetime import timedelta
 from pathlib import Path
 
 import openpyxl
@@ -71,7 +73,14 @@ def erstelle_klassen_dateien(phasen, ferien, unterrichtsfreietage, spezialwochen
     alle_klassen = sorted({klasse for p in phasen for klasse in p["lektionen"]})
 
     mitte = len(phasen) // 2
-    semester = [("1. Semester", phasen[:mitte]), ("2. Semester", phasen[mitte:])]
+    # Semester 1 endet erst am Tag vor Beginn von Semester 2 (nicht am Ende der
+    # letzten eigenen Phase) - sonst fallen Ferien-/Frei-/Spezialwochen, die
+    # genau in die Lücke zwischen den beiden Semestern fallen (z. B. ein
+    # Skilager unmittelbar vor Semester 2), aus beiden Arbeitsblättern raus.
+    semester = [
+        ("1. Semester", phasen[:mitte], phasen[0]["start"], phasen[mitte]["start"] - timedelta(days=1)),
+        ("2. Semester", phasen[mitte:], phasen[mitte]["start"], phasen[-1]["ende"]),
+    ]
 
     for klasse in alle_klassen:
         klassenstufe = klassenstufe_von_klasse(klasse)
@@ -80,55 +89,44 @@ def erstelle_klassen_dateien(phasen, ferien, unterrichtsfreietage, spezialwochen
         wb = openpyxl.Workbook()
         wb.remove(wb.active)
 
-        if ist_konstant(phasen, klasse, faecher_namen):
-            if len(faecher_namen) > 2:
-                print(f"WARNUNG: Klasse {klasse} hat mehr als zwei Fächer {faecher_namen} - übersprungen.")
-                continue
-            faecher = faecher_dict_fuer_phase(phasen[0], klasse, faecher_namen)
-            ws = wb.create_sheet("Jahresübersicht")
-            fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen, spezialtage, klassenstufe,
-                                 phasen[0]["start"], phasen[-1]["ende"])
-            beschreibung = "ganzes Jahr"
-        else:
-            uebersprungen = False
-            erzeugte_blaetter = 0
-            for semester_name, semester_phasen in semester:
-                if ist_konstant(semester_phasen, klasse, faecher_namen):
-                    if len(faecher_namen) > 2:
-                        print(f"WARNUNG: Klasse {klasse} hat mehr als zwei Fächer {faecher_namen} - "
-                              f"übersprungen.")
-                        uebersprungen = True
-                        break
-                    faecher = faecher_dict_fuer_phase(semester_phasen[0], klasse, faecher_namen)
-                    ws = wb.create_sheet(semester_name)
-                    fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen, spezialtage,
-                                         klassenstufe, semester_phasen[0]["start"], semester_phasen[-1]["ende"])
-                    erzeugte_blaetter += 1
-                    continue
-
-                for p in semester_phasen:
-                    hat = any(eintraege for _, eintraege in klassen_signatur(p, klasse, faecher_namen))
-                    if not hat:
-                        continue  # Klasse wird in dieser Phase nicht unterrichtet - kein Arbeitsblatt
-                    phase_faecher = sorted(
-                        fach for fach in faecher_namen if p["lektionen"].get(klasse, {}).get(fach)
-                    )
-                    if len(phase_faecher) > 2:
-                        print(f"WARNUNG: Klasse {klasse} hat in {p['name']} mehr als zwei Fächer "
-                              f"{phase_faecher} - Klasse übersprungen.")
-                        uebersprungen = True
-                        break
-                    faecher = faecher_dict_fuer_phase(p, klasse, phase_faecher)
-                    ws = wb.create_sheet(p["name"])
-                    fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen, spezialtage,
-                                         klassenstufe, p["start"], p["ende"], mit_inl=True)
-                    erzeugte_blaetter += 1
-                if uebersprungen:
+        uebersprungen = False
+        erzeugte_blaetter = 0
+        for semester_name, semester_phasen, semester_start, semester_ende in semester:
+            if ist_konstant(semester_phasen, klasse, faecher_namen):
+                if len(faecher_namen) > 2:
+                    print(f"WARNUNG: Klasse {klasse} hat mehr als zwei Fächer {faecher_namen} - übersprungen.")
+                    uebersprungen = True
                     break
-
-            if uebersprungen or erzeugte_blaetter == 0:
+                faecher = faecher_dict_fuer_phase(semester_phasen[0], klasse, faecher_namen)
+                ws = wb.create_sheet(semester_name)
+                fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen, spezialtage,
+                                     klassenstufe, semester_start, semester_ende)
+                erzeugte_blaetter += 1
                 continue
-            beschreibung = f"{erzeugte_blaetter} Blätter"
+
+            for p in semester_phasen:
+                hat = any(eintraege for _, eintraege in klassen_signatur(p, klasse, faecher_namen))
+                if not hat:
+                    continue  # Klasse wird in dieser Phase nicht unterrichtet - kein Arbeitsblatt
+                phase_faecher = sorted(
+                    fach for fach in faecher_namen if p["lektionen"].get(klasse, {}).get(fach)
+                )
+                if len(phase_faecher) > 2:
+                    print(f"WARNUNG: Klasse {klasse} hat in {p['name']} mehr als zwei Fächer "
+                          f"{phase_faecher} - Klasse übersprungen.")
+                    uebersprungen = True
+                    break
+                faecher = faecher_dict_fuer_phase(p, klasse, phase_faecher)
+                ws = wb.create_sheet(p["name"])
+                fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen, spezialtage,
+                                     klassenstufe, p["start"], p["ende"], mit_inl=True)
+                erzeugte_blaetter += 1
+            if uebersprungen:
+                break
+
+        if uebersprungen or erzeugte_blaetter == 0:
+            continue
+        beschreibung = f"{erzeugte_blaetter} Blätter"
 
         pfad = ausgabe_ordner / f"Planung_{klasse}.xlsx"
         wb.save(pfad)
