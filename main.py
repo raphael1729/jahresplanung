@@ -15,6 +15,7 @@ Setzt voraus, dass alle PDFs in input_files/ diesem Namensschema
 import re
 from pathlib import Path
 
+from jahresuebersicht import erstelle_jahresuebersicht_datei
 from klassenplanung import erstelle_alle_planungen
 from pdf_timetable_to_xlsx import build_workbook
 
@@ -50,6 +51,7 @@ def main():
         print(f"Konvertiert: {pdf_pfad.name} -> {ziel_name}")
 
     erstelle_alle_planungen(output_dir, ausgabe_ordner)
+    erstelle_jahresuebersicht_datei(output_dir, output_dir / "Jahresuebersicht.xlsx")
 
 
 if __name__ == "__main__":
