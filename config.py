@@ -53,14 +53,20 @@ SPEZIALTAGE = {
 }
 
 SPEZIALWOCHEN = {
+    "GB-Plus Klassen 1. Testwoche": [date(2026, 9, 14), date(2026, 9, 18)],
     "1. Klassen Regiowoche": [date(2026, 9, 21), date(2026, 9, 25)],
     "2. Klassen Theaterwoche": [date(2026, 9, 21), date(2026, 9, 25)],
     "3. Klassen SPF-Woche": [date(2026, 9, 21), date(2026, 9, 25)],
     "4. Klassen Bildungsreise": [date(2026, 9, 21), date(2026, 9, 25)],
+    "GB-Plus Klassen 2. Testwoche": [date(2026, 11, 16), date(2026, 11, 20)],
+    "GB-Plus Klassen 3. Testwoche": [date(2027, 1, 11), date(2027, 1, 15)],
     "1. Klassen Skilager": [date(2027, 1, 18), date(2027, 1, 22)],
     "2. Klassen Politik + Kulturwoche / Musikprojekt": [date(2027, 1, 18), date(2027, 1, 22)],
     "3. Klassen Politik + Kulturwoche / Musikprojekt": [date(2027, 1, 18), date(2027, 1, 22)],
     "4. Klassen Politik + Kulturwoche / Musikprojekt": [date(2027, 1, 18), date(2027, 1, 22)],
+    "GB-Plus Klassen 4. Testwoche": [date(2027, 3, 15), date(2027, 3, 19)],
+    "GB-Plus Klassen 5. Testwoche": [date(2027, 5, 10), date(2027, 5, 14)],
+    "GB-Plus Klassen 6. Testwoche": [date(2027, 6, 17), date(2027, 6, 23)],
     "1. Klassen NaWi-Woche": [date(2027, 6, 28), date(2027, 7, 2)],
     "2. Klassen Sommersportlager": [date(2027, 6, 28), date(2027, 7, 2)],
     "3. Klassen Maturaarbeitswoche": [date(2027, 6, 28), date(2027, 7, 2)],

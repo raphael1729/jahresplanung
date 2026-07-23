@@ -32,7 +32,7 @@ from pathlib import Path
 import openpyxl
 
 from config import BASIS_JAHR, FERIEN, UNTERRICHTSFREIETAGE, SPEZIALTAGE, SPEZIALWOCHEN
-from rendering import fuelle_arbeitsblatt
+from rendering import erweitertes_ende, fuelle_arbeitsblatt
 from stundenplan_parsing import lade_phasen
 
 
@@ -77,9 +77,13 @@ def erstelle_klassen_dateien(phasen, ferien, unterrichtsfreietage, spezialwochen
     # letzten eigenen Phase) - sonst fallen Ferien-/Frei-/Spezialwochen, die
     # genau in die Lücke zwischen den beiden Semestern fallen (z. B. ein
     # Skilager unmittelbar vor Semester 2), aus beiden Arbeitsblättern raus.
+    # Das Ende von Semester 2 wird ebenfalls erweitert, falls kurz nach der
+    # letzten Phase noch eine Ferien-/Spezialwoche beginnt (z. B. NaWi-Woche/
+    # Sommersportlager/Maturaarbeitswoche direkt nach Phase 6).
+    letztes_ende = erweitertes_ende(phasen[-1]["ende"], ferien, unterrichtsfreietage, spezialwochen)
     semester = [
         ("1. Semester", phasen[:mitte], phasen[0]["start"], phasen[mitte]["start"] - timedelta(days=1)),
-        ("2. Semester", phasen[mitte:], phasen[mitte]["start"], phasen[-1]["ende"]),
+        ("2. Semester", phasen[mitte:], phasen[mitte]["start"], letztes_ende),
     ]
 
     for klasse in alle_klassen:
@@ -118,8 +122,9 @@ def erstelle_klassen_dateien(phasen, ferien, unterrichtsfreietage, spezialwochen
                     break
                 faecher = faecher_dict_fuer_phase(p, klasse, phase_faecher)
                 ws = wb.create_sheet(p["name"])
+                p_ende = letztes_ende if p is phasen[-1] else p["ende"]
                 fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen, spezialtage,
-                                     klassenstufe, p["start"], p["ende"], mit_inl=True)
+                                     klassenstufe, p["start"], p_ende, mit_inl=True)
                 erzeugte_blaetter += 1
             if uebersprungen:
                 break

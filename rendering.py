@@ -28,6 +28,9 @@ WOCHENTAG_ABK = {
 }
 
 STUFE_UND_TITEL_RE = re.compile(r"^(\d+)\.\s*Klassen\s*(.+)$")
+NUMMERIERUNG_RE = re.compile(r"^\d+\.\s*")
+GB_PLUS_PRAEFIX = "GB-Plus Klassen "
+GB_PLUS_STUFE = "gb_plus"
 
 
 def stufe_und_titel(key, *, alle_klassen_praefix=False, strikt=False):
@@ -35,13 +38,22 @@ def stufe_und_titel(key, *, alle_klassen_praefix=False, strikt=False):
     Liest aus einem Key wie '1. Klassen Regiowoche' die Klassenstufe (1) und
     den reinen Titel ohne Stufe ('Regiowoche').
 
+    Ein 'GB-Plus Klassen '-Präfix wird immer erkannt (liefert Stufe
+    GB_PLUS_STUFE) - gilt nicht für eine Klassenstufe, sondern für Klassen,
+    die in Phasen unterrichtet werden (mit_inl=True beim Aufruf von
+    fuelle_arbeitsblatt()). Eine führende Nummerierung im Titel (z. B. die
+    '1.' in 'GB-Plus Klassen 1. Testwoche', nötig für eindeutige Keys im
+    SPEZIALWOCHEN-Dict) wird dabei entfernt - angezeigt wird nur 'Testwoche'.
     alle_klassen_praefix=True erkennt zusätzlich ein 'Alle Klassen '-Präfix
     (liefert dann Stufe None, gilt für jede Klassenstufe) - genutzt für
     Spezialtage.
-    strikt=True wirft einen ValueError, wenn der Key keinem der beiden
-    Formate entspricht, statt (None, key) zurückzugeben - genutzt für
+    strikt=True wirft einen ValueError, wenn der Key keinem der Formate
+    entspricht, statt (None, key) zurückzugeben - genutzt für
     Spezialwochen, die immer eine Stufe haben müssen.
     """
+    if key.startswith(GB_PLUS_PRAEFIX):
+        titel = key[len(GB_PLUS_PRAEFIX):].strip()
+        return GB_PLUS_STUFE, NUMMERIERUNG_RE.sub("", titel)
     if alle_klassen_praefix and key.startswith("Alle Klassen "):
         return None, key[len("Alle Klassen "):].strip()
     m = STUFE_UND_TITEL_RE.match(key)
@@ -88,7 +100,7 @@ def periode_status(tag, start_zeit, ende_zeit, spezialtage):
 
 
 def blockierte_zeitraeume(ferien, unterrichtsfreietage, spezialwochen, start, ende,
-                           klassenstufe, wochentage_mit_unterricht):
+                           klassenstufe, wochentage_mit_unterricht, mit_inl=False):
     """
     Liefert eine nach Startdatum sortierte Liste (start, ende, typ, label) für
     alle Ferien-, unterrichtsfreien und (klassenstufen-relevanten) Spezial-
@@ -96,7 +108,9 @@ def blockierte_zeitraeume(ferien, unterrichtsfreietage, spezialwochen, start, en
 
     Unterrichtsfreie Tage werden nur aufgenommen, wenn an diesem Wochentag
     für dieses Arbeitsblatt überhaupt Unterricht vorgesehen ist. Spezial-
-    wochen werden nur aufgenommen, wenn ihre Klassenstufe zur Klasse passt.
+    wochen werden nur aufgenommen, wenn ihre Klassenstufe zur Klasse passt -
+    'GB-Plus Klassen'-Spezialwochen (siehe stufe_und_titel()) nur, wenn
+    mit_inl=True (d. h. diese Klasse wird in Phasen unterrichtet).
     """
     bloecke = []
     for name, (s, e) in ferien.items():
@@ -108,17 +122,43 @@ def blockierte_zeitraeume(ferien, unterrichtsfreietage, spezialwochen, start, en
             bloecke.append((tag, tag, "frei", name))
     for key, (s, e) in spezialwochen.items():
         stufe, titel = stufe_und_titel(key, strikt=True)
-        if stufe != klassenstufe:
-            continue
+        if stufe == GB_PLUS_STUFE:
+            if not mit_inl:
+                continue
+            typ = "testwoche"
+        else:
+            if stufe != klassenstufe:
+                continue
+            typ = "spezialwoche"
         s2, e2 = max(s, start), min(e, ende)
         if s2 <= e2:
-            bloecke.append((s2, e2, "spezialwoche", titel))
+            bloecke.append((s2, e2, typ, titel))
     bloecke.sort(key=lambda b: b[0])
     return bloecke
 
 
 def ist_blockiert(tag, bloecke):
     return any(s <= tag <= e for s, e, _, _ in bloecke)
+
+
+def erweitertes_ende(basis_ende, ferien, unterrichtsfreietage, spezialwochen, puffer_tage=14):
+    """
+    Erweitert ein Enddatum, falls kurz danach (innerhalb von puffer_tage)
+    noch ein Ferien-/Frei-/Spezialwochen-Zeitraum beginnt (z. B. eine
+    Abschlusswoche direkt nach der letzten Phase, wie NaWi-Woche/
+    Sommersportlager/Maturaarbeitswoche nach Phase 6) - deckt ihn dann mit
+    ab, statt ihn beim Rendering abzuschneiden. Prüft alle Klassenstufen
+    zugleich (unabhängig von einer bestimmten Klasse), da es hier nur um
+    die Render-Reichweite geht, nicht um deren tatsächliche Zuordnung.
+    """
+    erweitert = basis_ende
+    for s, e in list(ferien.values()) + list(spezialwochen.values()):
+        if basis_ende < s <= basis_ende + timedelta(days=puffer_tage):
+            erweitert = max(erweitert, e)
+    for tag in unterrichtsfreietage.values():
+        if basis_ende < tag <= basis_ende + timedelta(days=puffer_tage):
+            erweitert = max(erweitert, tag)
+    return erweitert
 
 
 def kalenderwoche(tag):
@@ -448,7 +488,7 @@ def fuelle_arbeitsblatt(ws, faecher, ferien, unterrichtsfreietage, spezialwochen
     wochentage_mit_unterricht = {wt for eintraege in faecher.values() for wt, _ in eintraege}
 
     bloecke = blockierte_zeitraeume(ferien, unterrichtsfreietage, spezialwochen, start, ende,
-                                     klassenstufe, wochentage_mit_unterricht)
+                                     klassenstufe, wochentage_mit_unterricht, mit_inl=mit_inl)
 
     spezialtage_relevant = {}
     for name, zeitraum in spezialtage.items():
