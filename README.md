@@ -69,7 +69,7 @@ Fehlermeldung ab, statt still einen falschen Namen zu vergeben.
 | `pdf_timetable_to_xlsx.py` | Wandelt ein Stundenplan-PDF 1:1 in ein Excel-Raster um                |
 | `stundenplan_parsing.py`   | Liest die Excel-Raster aus und extrahiert Lektionen je Klasse/Fach    |
 | `rendering.py`             | Baut das Excel-Layout der Planungsdateien (Kopfzeile, Wochen, Blöcke) |
-| `klassenplanung.py`        | Orchestriert: prüft pro Klasse, ob der Stundenplan übers Jahr, pro Semester oder nur pro Phase konstant bleibt, und erzeugt entsprechend 1, 2 oder mehrere Arbeitsblätter |
+| `klassenplanung.py`        | Orchestriert: prüft pro Klasse und Semester, ob der Stundenplan konstant bleibt, und erzeugt entsprechend ein Semester- oder mehrere Phasen-Arbeitsblätter |
 | `config.py`                | Schulkalender + Gestaltungswerte (siehe unten)                        |
 | `farbtoene.py`             | Hilfsfunktion `tint()`, um Hex-Farben für `config.py` aufzuhellen     |
 
@@ -95,8 +95,9 @@ Faktor hellt die Basisfarbe Richtung Weiss auf (`1.0` = Originalfarbe,
 
 - `output_files/Stundenplan_*.xlsx` – ein Export pro PDF (Zwischenschritt)
 - `output_files/klassen/Planung_<Klasse>.xlsx` – die eigentlichen
-  Planungsdateien, ein Arbeitsblatt pro Jahr, pro Semester oder pro Phase
-  (je nachdem, wie konstant der Stundenplan der Klasse übers Jahr bleibt)
+  Planungsdateien, pro Semester (1./2. Semester) entweder ein
+  Arbeitsblatt für das ganze Semester oder eines pro Phase (je nachdem,
+  ob sich der Stundenplan der Klasse innerhalb des Semesters ändert)
 
 ## Lizenz
 
