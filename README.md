@@ -11,13 +11,15 @@ input_files/*.pdf                 (Untis-Stundenplan-Export als PDF)
         │  pdf_timetable_to_xlsx.py
         ▼
 output_files/Stundenplan_*.xlsx   (1:1-Excel-Abbild der PDF-Tabellen)
-        │  stundenplan_parsing.py + rendering.py
-        ▼
-output_files/klassen/Planung_*.xlsx   (1 Datei pro Klasse)
+        │  stundenplan_parsing.py + rendering.py / jahresuebersicht.py
+        ├──────────────────────────────────┬──────────────────────────────
+        ▼                                  ▼
+output_files/klassen/Planung_*.xlsx   output_files/Jahresuebersicht.xlsx
+(1 Datei pro Klasse)                  (klassenübergreifende Übersicht + Statistik)
 ```
 
-`main.py` führt beide Schritte nacheinander aus. Die drei Skripte können
-aber auch einzeln aufgerufen werden (siehe unten).
+`main.py` führt alle Schritte nacheinander aus. Die einzelnen Skripte
+können aber auch separat aufgerufen werden (siehe unten).
 
 ## Voraussetzungen
 
@@ -29,7 +31,8 @@ aber auch einzeln aufgerufen werden (siehe unten).
 
 ## Verwendung
 
-**Komplette Pipeline** (PDFs konvertieren + Klassen-Planungen erzeugen):
+**Komplette Pipeline** (PDFs konvertieren + Klassen-Planungen und
+Jahresübersicht erzeugen):
 
 ```bash
 python3 main.py
@@ -46,6 +49,12 @@ hat und die Stundenplan-Exporte in `output_files/` noch aktuell sind):
 
 ```bash
 python3 klassenplanung.py
+```
+
+**Nur die Jahresübersicht neu erzeugen:**
+
+```bash
+python3 jahresuebersicht.py
 ```
 
 ## Eingabedateien: Namensschema
@@ -70,6 +79,7 @@ Fehlermeldung ab, statt still einen falschen Namen zu vergeben.
 | `stundenplan_parsing.py`   | Liest die Excel-Raster aus und extrahiert Lektionen je Klasse/Fach    |
 | `rendering.py`             | Baut das Excel-Layout der Planungsdateien (Kopfzeile, Wochen, Blöcke) |
 | `klassenplanung.py`        | Orchestriert: prüft pro Klasse und Semester, ob der Stundenplan konstant bleibt, und erzeugt entsprechend ein Semester- oder mehrere Phasen-Arbeitsblätter |
+| `jahresuebersicht.py`      | Erzeugt die klassenübergreifende Jahresübersicht (Wochenraster + Statistik-Blatt) |
 | `config.py`                | Schulkalender + Gestaltungswerte (siehe unten)                        |
 | `farbtoene.py`             | Hilfsfunktion `tint()`, um Hex-Farben für `config.py` aufzuhellen     |
 
@@ -82,7 +92,12 @@ Vor jedem neuen Schuljahr in `config.py` aktualisieren:
 - `UNTERRICHTSFREIETAGE` – einzelne unterrichtsfreie Tage
 - `SPEZIALTAGE` – Termine mit Uhrzeiten (z. B. pädagogische Halbtage), die
   nur einzelne Lektionen ausfallen lassen, nicht den ganzen Tag
-- `SPEZIALWOCHEN` – Klassenstufen-spezifische Wochen (Skilager, Projektwochen, ...)
+- `SPEZIALWOCHEN` – Klassenstufen-spezifische Wochen (Skilager, Projektwochen, ...).
+  Ein Key mit Präfix `"GB-Plus Klassen "` (z. B. `"GB-Plus Klassen 1.
+  Testwoche"`) gilt statt für eine Klassenstufe für alle Klassen, die in
+  Phasen unterrichtet werden (mehrere Phasen-Arbeitsblätter statt einem
+  Semester-Blatt) - die Nummerierung im Key ist nur für eindeutige
+  Dict-Keys nötig und wird beim Anzeigen entfernt.
 
 `STIL` (Schrift, Farben, Zeilen-/Spaltenmasse) muss nur angepasst werden,
 wenn sich am Aussehen der Excel-Dateien etwas ändern soll. Farbwerte
@@ -98,6 +113,14 @@ Faktor hellt die Basisfarbe Richtung Weiss auf (`1.0` = Originalfarbe,
   Planungsdateien, pro Semester (1./2. Semester) entweder ein
   Arbeitsblatt für das ganze Semester oder eines pro Phase (je nachdem,
   ob sich der Stundenplan der Klasse innerhalb des Semesters ändert)
+- `output_files/Jahresuebersicht.xlsx` – klassenübergreifende Übersicht,
+  zwei Blätter:
+  - **Jahresübersicht**: Wochenraster (Klassen × Fächer × Kalenderwochen)
+    mit leeren Platzhalterzellen pro Phase zum manuellen Eintragen der
+    Lehrplan-Themen (die stehen in keiner unserer Datenquellen)
+  - **Statistik**: gehaltene/ausgefallene Lektionen je Klasse, Fach und
+    Phase (bzw. pro Semester zusammengefasst, wenn der Stundenplan dort
+    konstant bleibt), inkl. Ausfallgründen
 
 ## Lizenz
 
